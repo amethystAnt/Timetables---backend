@@ -98,6 +98,8 @@ async function onUrlResponse(myResponse, url, version, body) {
     })
 
     events.forEach(it => {
+        if (it.deleted) return
+
         let same = false
         if (!utils.isEmpty(fetchedEventsByStart[it.start])) {
             fetchedEventsByStart[it.start].forEach(fetched => {
@@ -110,12 +112,12 @@ async function onUrlResponse(myResponse, url, version, body) {
         if (!same) {
             it.update({deleted: true, version: newVersion})
             it.deleted = true
-            ret.objects.push(it)
+            it.version = newVersion
         }
     })
 
     events.forEach(it => {
-        if (it.version > version && it.version < newVersion) {
+        if (it.version > version) {
             ret.objects.push(it)
         }
     })
@@ -123,18 +125,21 @@ async function onUrlResponse(myResponse, url, version, body) {
     let index
     for (index = 0; index < fetchedEvents.length; index++) {
         const it = fetchedEvents[index]
-        let same = false
+        let same = null
         if (!utils.isEmpty(eventsByStart[it.start])) {
             eventsByStart[it.start].forEach(saved => {
                 if (eventsEqual(saved, it)) {
-                    same = true
+                    same = saved
                 }
             })
         }
 
-        if (!same) {
+        if (same == null) {
             it.version = newVersion
             calendar.addEvent(await database.Event.create(it))
+            ret.objects.push(it)
+        } else if (same.deleted) {
+            same.update({deleted: false, version: newVersion})
             ret.objects.push(it)
         }
     }
