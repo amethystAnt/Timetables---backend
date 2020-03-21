@@ -136,10 +136,15 @@ async function onUrlResponse(myResponse, url, version, body) {
 
         if (same == null) {
             it.version = newVersion
-            calendar.addEvent(await database.Event.create(it))
+            const dbEntry = await database.Event.create(it)
+            calendar.addEvent(dbEntry)
+            it.id = dbEntry.id
+            it.deleted = false
             ret.objects.push(it)
         } else if (same.deleted) {
             same.update({deleted: false, version: newVersion})
+            it.id = same.id
+            it.deleted = false
             ret.objects.push(it)
         }
     }
@@ -147,7 +152,7 @@ async function onUrlResponse(myResponse, url, version, body) {
     ret.count = ret.objects.length
     myResponse.send(JSON.stringify(
         ret, 
-        ['objects', 'count', 'version', 'start', 'end', 'summary', 'location', 'deleted']
+        ['objects', 'count', 'id', 'version', 'start', 'end', 'summary', 'location', 'deleted']
     ))
 }
 

@@ -2,6 +2,11 @@ const MODEL_NAME = 'Event'
 
 module.exports = (sequelize, DataTypes) => {
     const Event = sequelize.define(MODEL_NAME, {
+        id: {
+            type: DataTypes.BIGINT,
+            autoIncrement: true,
+            primaryKey: true
+        },
         start: DataTypes.TEXT,
         end: DataTypes.TEXT,
         location: DataTypes.TEXT,
