@@ -14,7 +14,7 @@ function onListening() {
 
 /**
  * How to make the server run on production:
- *  - add a new configuration to config.js named release, set port number to 3000
+ *  - add a new configuration to config.js named release, set port number to 443
  *  - generate key.pem and cert.pem using openSSL and put password into the object 
  *      passed to https.createServer (below)
  *  - export your environment variable NODE_ENV as release and run this script with node
