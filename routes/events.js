@@ -3,11 +3,12 @@ const request = require('request')
 const utils = require('../utils')
 const icalendar = require('../icalendar')
 const database = require('../database')
+const config = require('../config')
 
 function eventsEqual(event1, event2) {
-    return event1.start === event2.start 
-        && event1.end === event2.end 
-        && event1.location === event2.location 
+    return event1.start === event2.start
+        && event1.end === event2.end
+        && event1.location === event2.location
         && event1.summary === event2.summary
 }
 
@@ -21,13 +22,26 @@ function callback(req, res) {
         return
     }
 
+    if (config.mock) {
+        onUrlResponse(res, 'mock', version, utils.mockCalendar())
+            .then(() => {
+            })
+            .catch(error => {
+                res.statusCode = 500
+                res.end()
+                throw error
+            })
+        return
+    }
+
     request(url, (error, response, body) => {
         if (error !== null || response === null) {
             res.statusCode = 500
             res.end()
         } else {
             onUrlResponse(res, url, version, body)
-                .then(() => {})
+                .then(() => {
+                })
                 .catch(error => {
                     res.statusCode = 500
                     res.end()
@@ -55,7 +69,7 @@ async function onUrlResponse(myResponse, url, version, body) {
         return map[field]
     })
 
-    const fetchedEventsByStart = { }
+    const fetchedEventsByStart = {}
     fetchedEvents.forEach(it => {
         if (fetchedEventsByStart.hasOwnProperty(it.start)) {
             fetchedEventsByStart[it.start].push(it)
@@ -65,10 +79,10 @@ async function onUrlResponse(myResponse, url, version, body) {
     })
 
     let calendar = await database.Calendar.findOne({
-        where: { url: url },
-        include: [database.Event] 
+        where: {url: url},
+        include: [database.Event]
     })
-        
+
     if (calendar === null) {
         calendar = await database.Calendar.create({
             url: url,
@@ -79,7 +93,7 @@ async function onUrlResponse(myResponse, url, version, body) {
 
     const currentVersion = calendar.version
     const newVersion = currentVersion + 1
-    await calendar.update({ version: newVersion })
+    await calendar.update({version: newVersion})
 
     const ret = {
         objects: [],
@@ -88,7 +102,7 @@ async function onUrlResponse(myResponse, url, version, body) {
 
     const events = await calendar.getEvents()
 
-    const eventsByStart = { }
+    const eventsByStart = {}
     events.forEach(it => {
         if (eventsByStart.hasOwnProperty(it.start)) {
             eventsByStart[it.start].push(it)
@@ -151,7 +165,7 @@ async function onUrlResponse(myResponse, url, version, body) {
 
     ret.count = ret.objects.length
     myResponse.send(JSON.stringify(
-        ret, 
+        ret,
         ['objects', 'count', 'id', 'version', 'start', 'end', 'summary', 'location', 'deleted']
     ))
 }
