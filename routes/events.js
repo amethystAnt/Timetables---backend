@@ -1,17 +1,21 @@
 const request = require('request')
+const AsyncLock = require('async-lock')
 
 const utils = require('../utils')
 const icalendar = require('../icalendar')
 const database = require('../database')
 
+const MOCK_URL = 'mock'
+const lock = new AsyncLock()
+
 function eventsEqual(event1, event2) {
-    return event1.start === event2.start 
-        && event1.end === event2.end 
-        && event1.location === event2.location 
+    return event1.start === event2.start
+        && event1.end === event2.end
+        && event1.location === event2.location
         && event1.summary === event2.summary
 }
 
-function callback(req, res) {
+function callback(req, res, mock) {
     const url = req.query.url
     const version = req.query.version
 
@@ -21,24 +25,35 @@ function callback(req, res) {
         return
     }
 
+    if (mock) {
+        respondFor(res, MOCK_URL, version, utils.mockCalendar())
+        return
+    }
+
     request(url, (error, response, body) => {
         if (error !== null || response === null) {
             res.statusCode = 500
             res.end()
         } else {
-            onUrlResponse(res, url, version, body)
-                .then(() => {})
-                .catch(error => {
-                    res.statusCode = 500
-                    res.end()
-                    throw error
-                })
+            respondFor(res, url, version, body)
         }
     })
 }
 
-async function onUrlResponse(myResponse, url, version, body) {
-    let fetchedEvents = icalendar.parseICalendar(body, field => {
+function respondFor(res, url, version, icalendarData) {
+    lock.acquire(url, () => {
+        return database.sequelize.transaction(async t => await processIcalendar(url, version, icalendarData, t))
+    })
+        .then(json => res.send(json))
+        .catch(() => {
+            res.statusCode = 500
+            res.end()
+        })
+}
+
+async function processIcalendar(url, version, icalendarData, transaction) {
+
+    let fetchedEvents = icalendar.parseICalendar(icalendarData, field => {
         return [
             'DTSTART',
             'DTEND',
@@ -55,7 +70,7 @@ async function onUrlResponse(myResponse, url, version, body) {
         return map[field]
     })
 
-    const fetchedEventsByStart = { }
+    const fetchedEventsByStart = {}
     fetchedEvents.forEach(it => {
         if (fetchedEventsByStart.hasOwnProperty(it.start)) {
             fetchedEventsByStart[it.start].push(it)
@@ -65,30 +80,33 @@ async function onUrlResponse(myResponse, url, version, body) {
     })
 
     let calendar = await database.Calendar.findOne({
-        where: { url: url },
-        include: [database.Event] 
+        where: {url: url},
+        include: [database.Event],
+        transaction: transaction
     })
-        
+
     if (calendar === null) {
         calendar = await database.Calendar.create({
             url: url,
             version: 0
-        })
+        }, {transaction: transaction})
         calendar.Events = []
     }
 
     const currentVersion = calendar.version
     const newVersion = currentVersion + 1
-    await calendar.update({ version: newVersion })
+    await calendar.update({
+        version: newVersion
+    }, {transaction: transaction})
 
     const ret = {
         objects: [],
         version: newVersion
     }
 
-    const events = await calendar.getEvents()
+    const events = await calendar.getEvents({transaction: transaction})
 
-    const eventsByStart = { }
+    const eventsByStart = {}
     events.forEach(it => {
         if (eventsByStart.hasOwnProperty(it.start)) {
             eventsByStart[it.start].push(it)
@@ -110,7 +128,10 @@ async function onUrlResponse(myResponse, url, version, body) {
         }
 
         if (!same) {
-            it.update({deleted: true, version: newVersion})
+            it.update({
+                deleted: true,
+                version: newVersion
+            }, {transaction: transaction})
             it.deleted = true
             it.version = newVersion
         }
@@ -136,13 +157,16 @@ async function onUrlResponse(myResponse, url, version, body) {
 
         if (same == null) {
             it.version = newVersion
-            const dbEntry = await database.Event.create(it)
+            const dbEntry = await database.Event.create(it, {transaction: transaction})
             calendar.addEvent(dbEntry)
             it.id = dbEntry.id
             it.deleted = false
             ret.objects.push(it)
         } else if (same.deleted) {
-            same.update({deleted: false, version: newVersion})
+            same.update({
+                deleted: false,
+                version: newVersion
+            }, {transaction: transaction})
             it.id = same.id
             it.deleted = false
             ret.objects.push(it)
@@ -150,12 +174,13 @@ async function onUrlResponse(myResponse, url, version, body) {
     }
 
     ret.count = ret.objects.length
-    myResponse.send(JSON.stringify(
-        ret, 
+    return JSON.stringify(
+        ret,
         ['objects', 'count', 'id', 'version', 'start', 'end', 'summary', 'location', 'deleted']
-    ))
+    )
 }
 
 module.exports = app => {
-    app.get('/v1/events', callback)
+    app.get('/v1/events', (req, res) => callback(req, res, false))
+    app.get('/v1/mock/events', (req, res) => callback(req, res, true))
 }
