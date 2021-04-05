@@ -44,6 +44,7 @@ function startServer() {
     }
 }
 
+console.log(`=== Running server with NODE_ENV="${process.env.NODE_ENV}" ===\n`)
 database.sequelize.sync().then(() => {
     startServer()
 })
