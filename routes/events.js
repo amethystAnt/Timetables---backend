@@ -14,7 +14,7 @@ function eventsEqual(event1, event2) {
         && event1.summary === event2.summary
 }
 
-function callback(req, res) {
+function callback(req, res, mock) {
     const url = req.query.url
     const version = req.query.version
 
@@ -24,7 +24,7 @@ function callback(req, res) {
         return
     }
 
-    if (config.mock) {
+    if (mock) {
         respondFor(res, MOCK_URL, version, utils.mockCalendar())
         return
     }
@@ -178,5 +178,6 @@ async function processIcalendar(url, version, icalendarData, transaction) {
 }
 
 module.exports = app => {
-    app.get('/v1/events', callback)
+    app.get('/v1/events', (req, res) => callback(req, res, false))
+    app.get('/v1/mock/events', (req, res) => callback(req, res, true))
 }
