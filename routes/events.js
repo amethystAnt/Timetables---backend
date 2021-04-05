@@ -1,11 +1,12 @@
 const request = require('request')
+const AsyncLock = require('async-lock')
 
 const utils = require('../utils')
 const icalendar = require('../icalendar')
 const database = require('../database')
-const config = require('../config')
 
 const MOCK_URL = 'mock'
+const lock = new AsyncLock()
 
 function eventsEqual(event1, event2) {
     return event1.start === event2.start
@@ -40,9 +41,11 @@ function callback(req, res, mock) {
 }
 
 function respondFor(res, url, version, icalendarData) {
-    database.sequelize.transaction(async (t) => await processIcalendar(url, version, icalendarData, t))
+    lock.acquire(url, () => {
+        return database.sequelize.transaction(async t => await processIcalendar(url, version, icalendarData, t))
+    })
         .then(json => res.send(json))
-        .catch(error => {
+        .catch(() => {
             res.statusCode = 500
             res.end()
         })
