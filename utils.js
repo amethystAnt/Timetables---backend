@@ -15,7 +15,12 @@ exports.isSource = file => {
 }
 
 function formatTime(time) {
-    return (new Date(time)).toISOString().replace(/:|-|\./g, "")
+    let iso = (new Date(time)).toISOString().replace(/:|-|\./g, "")
+    if (iso.length > 15) {
+        iso = iso.substring(0, 15) + 'Z'
+    }
+
+    return iso
 }
 
 function makeEvent(uid, start, end, location, description) {
