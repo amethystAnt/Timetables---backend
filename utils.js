@@ -32,17 +32,16 @@ END:VEVENT
 exports.mockCalendar = () => {
     let ret = ""
 
-    let base = (new Date()).setUTCHours(9, 0, 0, 0)
+    let base = (new Date()).setUTCHours(10, 0, 0, 0)
     let id = 0
     const hourMs = 3600 * 1000
     for (let i = -7; i <= 7; i++) {
-
         let time = base + (i * hourMs * 24)
-        if (!((new Date(time)).getUTCDay() in [0, 6])) {
-            for (let j = 0; j < 3; j++) {
-                ret += makeEvent(id, time, time + hourMs, "Zoom", "Lecture " + (j + 1))
-                id++
-            }
+        for (let j = 0; j < 3; j++) {
+            let add = j === 0 ? j : (j - 1)
+            let start = time + (add * hourMs)
+            ret += makeEvent(id, start, start + hourMs - 1000, "Zoom", "Lecture " + (j + 1))
+            id++
         }
     }
 
