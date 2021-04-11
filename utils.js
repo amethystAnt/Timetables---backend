@@ -46,8 +46,8 @@ exports.mockCalendar = () => {
             let add = j === 0 ? j : (j - 1)
             let start = time + (add * hourMs)
             let date = new Date(start)
-            let day = date.getDay()
-            let month = date.getMonth()
+            let day = date.getDate()
+            let month = date.getMonth() + 1
             ret += makeEvent(id, start, start + hourMs - 1000, "Zoom", `Lecture ${j + 1} ${day}/${month}`)
             id++
         }
