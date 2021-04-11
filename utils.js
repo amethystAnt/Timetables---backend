@@ -45,7 +45,10 @@ exports.mockCalendar = () => {
         for (let j = 0; j < 3; j++) {
             let add = j === 0 ? j : (j - 1)
             let start = time + (add * hourMs)
-            ret += makeEvent(id, start, start + hourMs - 1000, "Zoom", "Lecture " + (j + 1))
+            let date = new Date(start)
+            let day = date.getDay()
+            let month = date.getMonth()
+            ret += makeEvent(id, start, start + hourMs - 1000, "Zoom", `Lecture ${j + 1} ${day}/${month}`)
             id++
         }
     }
